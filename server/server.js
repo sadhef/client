@@ -14,7 +14,8 @@ const config = {
   
   CORS_ORIGINS: [
     'https://bladerunner.greenjets.com',
-    'http://localhost:3000'
+    'http://localhost:3000',
+    'https://greenjets.vercel.app'
   ]
 };
 
@@ -35,11 +36,13 @@ const logger = {
 
 const app = express();
 
-// CORS configuration
-app.use(cors({
-  origin: (origin, callback) => {
-    const isAllowed = !origin || config.CORS_ORIGINS.includes(origin);
-    if (isAllowed) {
+// Enhanced CORS configuration
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (config.CORS_ORIGINS.indexOf(origin) !== -1 || config.NODE_ENV === 'development') {
       callback(null, true);
     } else {
       logger.debug('CORS blocked origin:', origin);
@@ -48,11 +51,26 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-auth-token', 'x-requested-with'],
-  exposedHeaders: ['x-auth-token']
-}));
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'x-auth-token',
+    'x-requested-with',
+    'Origin',
+    'Accept'
+  ],
+  exposedHeaders: ['x-auth-token'],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
+};
 
-// Body parser middleware
+// Apply CORS middleware
+app.use(cors(corsOptions));
+
+// Handle OPTIONS preflight requests
+app.options('*', cors(corsOptions));
+
+// Body parser middleware with increased limits
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 

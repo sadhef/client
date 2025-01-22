@@ -7,25 +7,34 @@ const API_CONFIG = {
   RETRY_ATTEMPTS: 3,
 };
 
-// Create axios instance with default configuration
+// Create axios instance with enhanced configuration
 const api = axios.create({
   baseURL: API_CONFIG.API_URL,
   timeout: API_CONFIG.TIMEOUT,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
-    Accept: 'application/json',
+    'Accept': 'application/json',
     'X-Requested-With': 'XMLHttpRequest',
-  },
+  }
 });
 
-// Request interceptor to add token to headers
+// Enhanced request interceptor
 api.interceptors.request.use(
   (config) => {
+    // Add CORS headers to every request
+    config.headers['Access-Control-Allow-Credentials'] = true;
+    
     const token = localStorage.getItem('token');
     if (token) {
       config.headers['x-auth-token'] = token;
     }
+    
+    // Handle development environment
+    if (process.env.NODE_ENV === 'development') {
+      config.headers['Origin'] = window.location.origin;
+    }
+    
     return config;
   },
   (error) => {
@@ -34,7 +43,7 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor with enhanced error handling and retry logic
+// Enhanced response interceptor
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -47,6 +56,15 @@ api.interceptors.response.use(
       window.location.href = '/login';
       return Promise.reject({
         message: 'Session expired. Please login again.',
+      });
+    }
+
+    // Handle CORS errors
+    if (error.message === 'Network Error') {
+      console.error('CORS or Network Error:', error);
+      return Promise.reject({
+        message: 'Unable to connect to the server. Please check your connection.',
+        originalError: error,
       });
     }
 
@@ -68,21 +86,11 @@ api.interceptors.response.use(
       }
     }
 
-    // Handle other response errors
+    // Handle other errors
     if (error.response) {
       return Promise.reject(error.response.data);
     }
 
-    // Handle request errors
-    if (error.request) {
-      console.error('[Network Error]', error.request);
-      return Promise.reject({
-        message: 'Network error occurred. Please check your connection.',
-        originalError: error.request,
-      });
-    }
-
-    // Handle other errors
     console.error('[Error]', error.message);
     return Promise.reject({
       message: 'An unexpected error occurred.',
